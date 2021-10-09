@@ -1,19 +1,24 @@
 package Server_A;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
+import java.util.ArrayList;
 
 public class LightweightA {
+    public static final int NEW_CONNECTION = 1;
+    public static final int END_CONNECTION = 2;
+
     private final int myId;
     private final int N;
     private boolean running = true;
     private DirectClock v;
     int[] q;
     private Socket socket;
+    private ObjectOutputStream oos = null;
+    private ObjectInputStream ois = null;
+    private ServerSocket serverSocket;
+    public static ArrayList<Integer> nodes =  new ArrayList<>();
 
     public LightweightA(int id, int numProcesses) {
         this.myId = id;
@@ -24,17 +29,13 @@ public class LightweightA {
         for(int j = 0; j < N; j++)
             q[j] = Integer.MAX_VALUE;
 
-        try {
-            initCom();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        initCom();
     }
 
     private void start() {
         while(true) {
             waitHeavyWeight();
-            requestCS();
+            //requestCS();
             for(int i = 0; i < 10; i++) {
                 System.out.println("I am the process lightweightA" + myId);
                 try {
@@ -43,7 +44,7 @@ public class LightweightA {
                     e.printStackTrace();
                 }
             }
-            releaseCS();
+            //releaseCS();
             notifyHeavyWeight();
         }
     }
@@ -91,25 +92,58 @@ public class LightweightA {
     }
 
 
-    private void initCom() throws IOException {
-        socket = new Socket("localhost", 4321);
+    private void initCom() {
+        System.out.println("Initializing Communication");
+        try {
+            socket = new Socket("localhost", 4321);
+            oos = new ObjectOutputStream(socket.getOutputStream());
+            ois = new ObjectInputStream(socket.getInputStream());
+            System.out.println("My port: " + socket.getLocalPort());
+            serverSocket = new ServerSocket(socket.getLocalPort());
+            Integer numNodes = (Integer)ois.readObject();
+            oos.writeObject("ack");
+            oos.flush();
+            System.out.println("Read number of nodes: " + numNodes);
+            while(numNodes > 0 ) {
+                Integer node = (Integer)ois.readObject();
+                oos.writeObject("ack");
+                oos.flush();
+                System.out.println("Adding Node " + node);
+                nodes.add(node);
+                numNodes--;
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            try {
+                System.out.println("Shutting down sockets...");
+                if(socket != null) socket.close();
+                if(serverSocket != null) serverSocket.close();
+                if(ois != null) ois.close();
+                if(oos != null) oos.close();
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        }
     }
 
     private void waitHeavyWeight() {
         String str = "";
         try {
-            ObjectInputStream ois = new ObjectInputStream(socket.getInputStream());
             while(!str.equals("token")) {
                 str = (String) ois.readObject();
+                System.out.println("Read " + str + " while waiting for heavy weight");
             }
-            ois.close();
         } catch(IOException | ClassNotFoundException e) {
             e.printStackTrace();
         }
     }
 
     private void notifyHeavyWeight() {
-
+        try {
+            ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
+            oos.writeObject((Integer)END_CONNECTION);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private Thread startListening() throws IOException {
@@ -156,4 +190,11 @@ public class LightweightA {
             e.printStackTrace();
         }
     }
+
+    public static void main(String[] args) {
+        LightweightA server =  new LightweightA(1,3);
+        System.out.println("Starting Server!");
+        server.start();
+    }
+
 }
