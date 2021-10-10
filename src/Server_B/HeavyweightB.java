@@ -33,8 +33,7 @@ public class HeavyweightB {
                 System.out.println("Got token from Heavyweight A");
                 //Do whatever
 
-                //When done:
-                //sendTokenToHeavyweight
+                //When done: sendTokenToHeavyweight
             }
             closeEverything();
         } catch (IOException e) {
