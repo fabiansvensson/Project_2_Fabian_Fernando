@@ -16,16 +16,18 @@ public class ClientHandler implements Runnable {
     public ObjectOutputStream oos = null;
     public Integer portNumber;
     public boolean done = false;
+    public boolean ready = false;
+    public boolean token = false;
 
-    public ClientHandler(Socket socket) {
+    public ClientHandler(Socket socket, boolean token) {
         try {
             this.socket = socket;
             this.oos = new ObjectOutputStream(socket.getOutputStream());
             this.ois = new ObjectInputStream(socket.getInputStream());
             portNumber = socket.getPort();
             System.out.println("Adding " + portNumber + " to queue...");
+            this.token = token;
             clientHandlers.add(this);
-            broadcastMessage(portNumber);
         } catch(IOException e) {
             closeEverything(socket, oos, ois);
         }
@@ -40,13 +42,8 @@ public class ClientHandler implements Runnable {
                 oos.flush();
                 String msg = (String)ois.readObject();
                 if(msg.equals("ack")) {
-                    for(ClientHandler ch : clientHandlers) {
-                        Integer port = ch.portNumber;
-                        oos.writeObject((Integer)port);
-                        oos.flush();
-                        msg = (String)ois.readObject();
-                        if(!msg.equals("ack")) throw new IOException("ack was not received");
-                    }
+                    System.out.println(portNumber + " is ready!");
+                    ready = true;
                 } else throw new IOException("ack was not received");
             } catch(IOException | ClassNotFoundException e) {
                 System.out.println(e.getMessage());
@@ -54,24 +51,28 @@ public class ClientHandler implements Runnable {
             }
         }
         while(socket.isConnected()) {
-            try {
-                System.out.println("Waiting for client");
-                Integer clientMessage = (Integer)ois.readObject();
-                if(clientMessage == END_CONNECTION) done = true;
-            } catch (IOException | ClassNotFoundException e) {
-                e.printStackTrace();
-                closeEverything(socket, oos, ois);
-                break;
+            if(token) {
+                try {
+                    System.out.println("Waiting for client");
+                    Integer clientMessage = (Integer)ois.readObject();
+                    if(clientMessage == END_CONNECTION) {
+                        System.out.println(portNumber + " is done!");
+                        done = true;
+                        token = false;
+                    }
+                } catch (IOException | ClassNotFoundException e) {
+                    closeEverything(socket, oos, ois);
+                    break;
+                }
             }
         }
+
     }
 
-    public void broadcastMessage(Integer newClient) {
-        System.out.println(newClient);
+    public void broadcastMessage(String newClient) {
         for (ClientHandler clientHandler : clientHandlers) {
             try {
                 if(!Objects.equals(clientHandler.portNumber, portNumber)) {
-                    System.out.println(clientHandler.portNumber + " vs " + portNumber);
                     clientHandler.oos.writeObject(newClient);
                     clientHandler.oos.flush();
                 }
@@ -83,11 +84,12 @@ public class ClientHandler implements Runnable {
 
     public void removeClientHandler() {
         clientHandlers.remove(this);
-        System.out.println("SERVER: " + portNumber + " has left the chat!");
+        System.out.println("SERVER: " + portNumber + " has left!");
     }
 
     public void notifyClient() {
         try {
+            token = true;
             oos.writeObject("token");
             oos.flush();
         } catch(IOException e) {

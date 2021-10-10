@@ -42,4 +42,12 @@ public class Wrapper implements Serializable {
     public void setTo(int to) {
         this.to = to;
     }
+
+    public int getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(int timestamp) {
+        this.timestamp = timestamp;
+    }
 }

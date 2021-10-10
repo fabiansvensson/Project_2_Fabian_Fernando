@@ -9,6 +9,9 @@ import java.util.ArrayList;
 
 public class HeavyweightA {
     private ServerSocket serverSocket;
+    private Socket heavySocket;
+    private ObjectOutputStream oos;
+    private ObjectInputStream ois;
     private int numConnections;
     private boolean token;
     public static ArrayList<Integer> nodes =  new ArrayList<>();
@@ -27,7 +30,7 @@ public class HeavyweightA {
                 System.out.println("Waiting for connections...");
                 Socket socket = serverSocket.accept();
 
-                ClientHandler clientHandler = new ClientHandler(socket);
+                ClientHandler clientHandler = new ClientHandler(socket, token);
                 clients.add(clientHandler);
 
                 Thread thread = new Thread(clientHandler);
@@ -35,6 +38,23 @@ public class HeavyweightA {
 
                 count++;
             }
+
+            boolean ready = false;
+            while(!ready) {
+                ready = true;
+                for(ClientHandler ch : clients) {
+                    if (!ch.ready) {
+                        System.out.println("Ready is false?");
+                        ready = false;
+                    }
+                }
+            }
+
+            System.out.println("Waiting for other heavy to connect...");
+            heavySocket = serverSocket.accept();
+            System.out.println("Heavyweight servers connected!");
+            oos = new ObjectOutputStream(heavySocket.getOutputStream());
+            ois = new ObjectInputStream(heavySocket.getInputStream());
 
             while(!serverSocket.isClosed()) {
                 while(!token) listenHeavyweight();
@@ -51,21 +71,44 @@ public class HeavyweightA {
                 sendTokenToHeavyweight();
             }
         } catch (IOException e) {
-            try {
-                serverSocket.close();
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
-            e.printStackTrace();
+            closeEverything();
         }
     }
 
     public void sendTokenToHeavyweight() {
-        System.out.println("Sending token to other heavyweight...");
+        try {
+            oos.writeObject(1);
+        } catch (IOException e) {
+            closeEverything();
+        }
     }
 
     public void listenHeavyweight() {
-        System.out.println("Listening for other heavyweight...");
+        try {
+            token = ((Integer)ois.readObject() == 1);
+        } catch (IOException | ClassNotFoundException e) {
+            closeEverything();
+        }
+    }
+
+    public void closeEverything() {
+        System.out.println("Server shutting down...");
+        try {
+            if(ois != null) {
+                ois.close();
+            }
+            if(oos != null) {
+                oos.close();
+            }
+            if(serverSocket != null) {
+                serverSocket.close();
+            }
+            if(heavySocket != null) {
+                heavySocket.close();
+            }
+        } catch(IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public static void main(String[] args ) throws IOException {
