@@ -31,7 +31,10 @@ public class HeavyweightB {
             while(!serverSocket.isClosed()) {
                 while (!token) listenHeavyweight();
                 System.out.println("Got token from Heavyweight A");
-                //Do Whatever
+                //Do whatever
+
+                //When done:
+                //sendTokenToHeavyweight
             }
             closeEverything();
         } catch (IOException e) {

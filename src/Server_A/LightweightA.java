@@ -174,6 +174,8 @@ public class LightweightA {
                 str = (String) ois.readObject();
                 if(!str.equals("token")) nodes.add(Integer.valueOf(str));
             }
+            v = new DirectClock(3);
+            v.setId(myId);
         } catch(IOException | ClassNotFoundException e) {
             e.printStackTrace();
         }
