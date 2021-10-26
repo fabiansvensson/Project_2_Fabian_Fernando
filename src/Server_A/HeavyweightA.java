@@ -15,7 +15,7 @@ public class HeavyweightA {
     private int numConnections;
     private boolean token;
     public static ArrayList<Integer> nodes =  new ArrayList<>();
-    public static ArrayList<ClientHandler> clients =  new ArrayList<>();
+    public static ArrayList<ClientHandlerA> clients =  new ArrayList<>();
 
     public HeavyweightA(ServerSocket serverSocket, int numConnections) {
         this.serverSocket = serverSocket;
@@ -30,10 +30,10 @@ public class HeavyweightA {
                 System.out.println("Waiting for connections...");
                 Socket socket = serverSocket.accept();
 
-                ClientHandler clientHandler = new ClientHandler(socket, token);
-                clients.add(clientHandler);
+                ClientHandlerA clientHandlerA = new ClientHandlerA(socket, token);
+                clients.add(clientHandlerA);
 
-                Thread thread = new Thread(clientHandler);
+                Thread thread = new Thread(clientHandlerA);
                 thread.start();
 
                 count++;
@@ -42,9 +42,9 @@ public class HeavyweightA {
             boolean ready = false;
             while(!ready) {
                 ready = true;
-                for(ClientHandler ch : clients) {
+                for(ClientHandlerA ch : clients) {
                     if (!ch.ready) {
-                        System.out.println("Ready is false?");
+                        //System.out.println("Ready is false?");
                         ready = false;
                     }
                 }
@@ -57,16 +57,19 @@ public class HeavyweightA {
             ois = new ObjectInputStream(heavySocket.getInputStream());
 
             while(!serverSocket.isClosed()) {
+                System.out.println("Waiting for Heavyweight B to give token...");
                 while(!token) listenHeavyweight();
-                for(ClientHandler ch : clients) ch.notifyClient();
+                System.out.println("Received token from Heavyweight B");
+                for(ClientHandlerA ch : clients) ch.notifyClient();
 
                 boolean done = false;
                 while(!done) {
                     done = true;
-                    for(ClientHandler ch : clients) {
+                    for(ClientHandlerA ch : clients) {
                         if(!ch.done) done = false;
                     }
                 }
+                System.out.println("Sending token to heavyweight B");
                 token = false;
                 sendTokenToHeavyweight();
             }

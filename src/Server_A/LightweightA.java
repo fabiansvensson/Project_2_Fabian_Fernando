@@ -34,28 +34,21 @@ public class LightweightA {
     }
 
     private void start() {
-        Thread listener = null;
         while(true) {
-            try {
-                waitHeavyWeight();
-                for(Socket s : lightSockets) {
-                    listener = startListening(s);
-                    listener.start();
+
+            waitHeavyWeight();
+            requestCS();
+            for(int i = 0; i < 10; i++) {
+                System.out.println("I am the process lightweight A" + (myId +1) + " {" + i + "}");
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
-                requestCS();
-                for(int i = 0; i < 10; i++) {
-                    System.out.println("I am the process lightweight A" + (myId +1) + " {" + i + "}");
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-                releaseCS();
-                notifyHeavyWeight();
-            } catch (IOException e) {
-                e.printStackTrace();
             }
+            releaseCS();
+            notifyHeavyWeight();
+
         }
     }
 
@@ -69,7 +62,7 @@ public class LightweightA {
             getAccess = okayCS();
             System.out.println("getAccess: " + getAccess);
             try {
-                Thread.sleep(1000);
+                Thread.sleep(500);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
@@ -150,6 +143,12 @@ public class LightweightA {
                 outs.add(new ObjectOutputStream(s.getOutputStream()));
             }
 
+            Thread listener = null;
+            for(Socket s : lightSockets) {
+                listener = startListening(s);
+                listener.start();
+            }
+
             oos.writeObject("ack");
             oos.flush();
 
@@ -174,6 +173,7 @@ public class LightweightA {
                 str = (String) ois.readObject();
                 if(!str.equals("token")) nodes.add(Integer.valueOf(str));
             }
+            System.out.println("Access granted!");
             v = new DirectClock(3);
             v.setId(myId);
         } catch(IOException | ClassNotFoundException e) {
@@ -205,12 +205,10 @@ public class LightweightA {
                         Wrapper msg = (Wrapper) node_ois.readObject();
                         handleMsg(msg);
                     } catch (IOException | ClassNotFoundException e) {
-                        if(node_ois != null) {
-                            try {
-                                node_ois.close();
-                            } catch (IOException ex) {
-                                ex.printStackTrace();
-                            }
+                        try {
+                            node_ois.close();
+                        } catch (IOException ex) {
+                            ex.printStackTrace();
                         }
                         closeEverything();
                     }
@@ -253,6 +251,8 @@ public class LightweightA {
 
     public void closeEverything() {
         try {
+            System.out.println("Shutting down Lightweight A" + myId);
+            running = false;
             for(ObjectOutputStream out : outs) {
                 if(out != null) out.close();
             }

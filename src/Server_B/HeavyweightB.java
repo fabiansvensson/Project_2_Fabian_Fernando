@@ -1,12 +1,13 @@
 package Server_B;
 
-import Server_A.HeavyweightA;
+import Server_A.ClientHandlerA;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 
 public class HeavyweightB {
     private ServerSocket serverSocket;
@@ -15,6 +16,7 @@ public class HeavyweightB {
     private ObjectInputStream ois;
     private int numConnections;
     private boolean token;
+    public static ArrayList<ClientHandlerB> clients =  new ArrayList<>();
 
     public HeavyweightB(ServerSocket serverSocket, int numConnections) {
         this.serverSocket = serverSocket;
@@ -28,10 +30,56 @@ public class HeavyweightB {
             heavySocket = new Socket("localhost", 4321);
             oos = new ObjectOutputStream(heavySocket.getOutputStream());
             ois = new ObjectInputStream(heavySocket.getInputStream());
+            int count = 0;
             while(!serverSocket.isClosed()) {
+                System.out.println("Waiting for Heavyweight A to give token...");
                 while (!token) listenHeavyweight();
                 System.out.println("Got token from Heavyweight A");
                 //Do whatever
+                while(count < numConnections) {
+                    System.out.println("Waiting for connections...");
+                    Socket socket = serverSocket.accept();
+
+                    ClientHandlerB clientHandlerB = new ClientHandlerB(socket, token, count+1);
+                    clients.add(clientHandlerB);
+
+                    Thread thread = new Thread(clientHandlerB);
+                    thread.start();
+
+                    try {
+                        Thread.sleep(50);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+
+                    count++;
+                }
+
+                boolean ready = false;
+                while(!ready) {
+                    ready = true;
+                    for(ClientHandlerB ch : clients) {
+                        if (!ch.ready) {
+                            //System.out.println("Ready is false?");
+                            ready = false;
+                        }
+                    }
+                }
+
+                System.out.println("Clients ready");
+
+                for(ClientHandlerB ch : clients) ch.notifyClient();
+
+                boolean done = false;
+                while(!done) {
+                    done = true;
+                    for(ClientHandlerB ch : clients) {
+                        if(!ch.done) done = false;
+                    }
+                }
+                System.out.println("Sending token to heavyweight A");
+                token = false;
+                sendTokenToHeavyweight();
 
                 //When done: sendTokenToHeavyweight
             }
@@ -79,7 +127,7 @@ public class HeavyweightB {
 
     public static void main(String[] args ) throws IOException {
         ServerSocket serverSocket = new ServerSocket(1234);
-        HeavyweightB server =  new HeavyweightB(serverSocket, 3);
+        HeavyweightB server =  new HeavyweightB(serverSocket, 2);
         server.startHeavyweight();
     }
 }

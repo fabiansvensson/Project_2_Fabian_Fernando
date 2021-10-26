@@ -4,13 +4,15 @@ import java.io.*;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Objects;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public class ClientHandler implements Runnable {
+public class ClientHandlerA implements Runnable {
 
     public static final int NEW_CONNECTION = 1;
     public static final int END_CONNECTION = 2;
 
-    public static ArrayList<ClientHandler> clientHandlers =  new ArrayList<>();
+    public static ArrayList<ClientHandlerA> clientHandlerAS =  new ArrayList<>();
     public Socket socket;
     public ObjectInputStream ois = null;
     public ObjectOutputStream oos = null;
@@ -18,8 +20,9 @@ public class ClientHandler implements Runnable {
     public boolean done = false;
     public boolean ready = false;
     public boolean token = false;
+    private static ReadWriteLock lock = new ReentrantReadWriteLock();
 
-    public ClientHandler(Socket socket, boolean token) {
+    public ClientHandlerA(Socket socket, boolean token) {
         try {
             this.socket = socket;
             this.oos = new ObjectOutputStream(socket.getOutputStream());
@@ -27,7 +30,7 @@ public class ClientHandler implements Runnable {
             portNumber = socket.getPort();
             System.out.println("Adding " + portNumber + " to queue...");
             this.token = token;
-            clientHandlers.add(this);
+            clientHandlerAS.add(this);
         } catch(IOException e) {
             closeEverything(socket, oos, ois);
         }
@@ -35,7 +38,7 @@ public class ClientHandler implements Runnable {
 
     @Override
     public void run() {
-        Integer numClients = clientHandlers.size();
+        Integer numClients = clientHandlerAS.size();
         if(socket.isConnected()) {
             try {
                 oos.writeObject(numClients);
@@ -51,45 +54,53 @@ public class ClientHandler implements Runnable {
             }
         }
         while(socket.isConnected()) {
-            if(token) {
+            boolean tokenVal = readToken();
+            if(tokenVal) {
                 try {
                     System.out.println("Waiting for client");
                     Integer clientMessage = (Integer)ois.readObject();
                     if(clientMessage == END_CONNECTION) {
                         System.out.println(portNumber + " is done!");
                         done = true;
-                        token = false;
+                        setToken(false);
                     }
+
                 } catch (IOException | ClassNotFoundException e) {
                     closeEverything(socket, oos, ois);
                     break;
                 }
             }
         }
-
+        System.out.println("Socket in CLientHandlerA no longer connected...");
     }
 
-    public void broadcastMessage(String newClient) {
-        for (ClientHandler clientHandler : clientHandlers) {
-            try {
-                if(!Objects.equals(clientHandler.portNumber, portNumber)) {
-                    clientHandler.oos.writeObject(newClient);
-                    clientHandler.oos.flush();
-                }
-            } catch(IOException e) {
-                closeEverything(socket, oos, ois);
-            }
+    private void setToken(boolean val) {
+        lock.writeLock().lock();
+        try {
+            token = val;
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    private boolean readToken() {
+        lock.readLock().lock();
+        try {
+            return token;
+        } finally {
+            lock.readLock().unlock();
         }
     }
 
     public void removeClientHandler() {
-        clientHandlers.remove(this);
+        clientHandlerAS.remove(this);
         System.out.println("SERVER: " + portNumber + " has left!");
     }
 
     public void notifyClient() {
         try {
-            token = true;
+            setToken(true);
+            done = false;
             oos.writeObject("token");
             oos.flush();
         } catch(IOException e) {
